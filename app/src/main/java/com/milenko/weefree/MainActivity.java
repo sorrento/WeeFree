@@ -1,10 +1,13 @@
 package com.milenko.weefree;
 
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.net.wifi.ScanResult;
+import android.content.IntentFilter;
+import android.net.NetworkInfo;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
+import android.os.Vibrator;
 import android.support.v7.app.AppCompatActivity;
 import android.view.View;
 import android.widget.CompoundButton;
@@ -15,7 +18,6 @@ import android.widget.Toast;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -33,6 +35,7 @@ public class MainActivity extends AppCompatActivity {
     private Context mContext;
     private boolean foundDonante = false;
     private Timer t;
+    private WifiReceiver2 receiverWifi;
 
     private static String currentDate() {
         SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
@@ -54,7 +57,14 @@ public class MainActivity extends AppCompatActivity {
         WriteUnhandledErrors(true);
 
         mContext = getApplicationContext();
+
+        receiverWifi = new WifiReceiver2();
+        IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
+        mContext.registerReceiver(receiverWifi, intentFilter);
+
         //Start service as donant
+
         swDetection = (Switch) findViewById(R.id.switch1);
         swDetection.setChecked(false);
         swDetection.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
@@ -88,6 +98,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void CheckDonantesLookingAtFile() {
+        myLog.add("entering ChekDOannates looking a file", "aut");
         //scaneear cada7 segundos si hay donanteen el file:
         t = new Timer();
         t.schedule(new TimerTask() {
@@ -121,7 +132,7 @@ public class MainActivity extends AppCompatActivity {
                         wifiManager.setWifiEnabled(true);
                     }
 
-                    keepTruingToConnect();
+                    keepTryingToConnect();
                 } else {
                     myLog.add("No hay donantes", "aut");
                     writeScreen("no hay donantes");
@@ -132,7 +143,9 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    private void keepTruingToConnect() {
+    private void keepTryingToConnect() {
+        myLog.add("in Keeptryibg", "aut");
+
         final Timer timer = new Timer();
         timer.schedule(new TimerTask() {
             @Override
@@ -140,6 +153,7 @@ public class MainActivity extends AppCompatActivity {
                 //Puede que aun no esté encendida la wifi, asin qu repetimos
                 myLog.add("UN intento de mirar las wifis", "aut");
                 Boolean wifiIsOn = connectToDonante();
+                myLog.add("wifison=" + wifiIsOn, "aut");
                 if (wifiIsOn) timer.cancel();
 
             }
@@ -147,41 +161,13 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void stopChekingDonantesInFile() {
+        myLog.add("stopping timer the chek in file", "aut");
         t.cancel();
     }
 
-    private void CheckDonantesScaningWifi() {
-        //scaneear cada7 segundos si hay donante:
-        final Timer t = new Timer();
-        t.schedule(new TimerTask() {
-            @Override
-            public void run() {
-//                WifiManager wifiManager2= (WifiManager) getSystemService(Context.WIFI_SERVICE);
-                boolean foundDonante = false;
-                AccessPoint.destroyWifiAccessPoint(wifiManager);
-                wifiManager.startScan();
-                final List<ScanResult> sr = wifiManager.getScanResults();
-
-                for (ScanResult r : sr) {
-                    if (r.SSID.equals(AccessPoint.SSID_DONANTE)) {
-                        foundDonante = true;
-                        break;
-                    }
-                }
-                if (foundDonante) {
-                    writeScreen("encontrado un donante!");
-                    connectToDonante();
-                } else {
-                    writeScreen("no hay donantes");
-                    AccessPoint.createWifiAccessPoint(AccessPoint.SSID_VAMPIRE, AccessPoint.PASS_VAMPIRE, wifiManager);
-                }
-
-            }
-        }, 0, 7000);
-    }
 
     private Boolean connectToDonante() {
-        myLog.add("7. connecttin to APD", "aut");
+        myLog.add("8. connecttin to APD", "aut");
         writeScreen("conectando a donante");
         if (!wifiManager.isWifiEnabled()) {
             wifiManager.setWifiEnabled(true);
@@ -198,6 +184,25 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+    }
+
+    class WifiReceiver2 extends BroadcastReceiver {
+
+        public void onReceive(Context c, Intent intent) {
+            final String action = intent.getAction();
+
+            if (action.equals(WifiManager.NETWORK_STATE_CHANGED_ACTION)) {
+                NetworkInfo netInfo = intent.getParcelableExtra(WifiManager.EXTRA_NETWORK_INFO);
+
+                if (netInfo.getDetailedState() == (NetworkInfo.DetailedState.CONNECTED)) {
+                    if (netInfo.getExtraInfo().equals("\"" + AccessPoint.SSID_DONANTE + "\"")) {
+                        Vibrator v = (Vibrator) mContext.getSystemService(Context.VIBRATOR_SERVICE);
+                        v.vibrate(300);
+                        myLog.add("8. connected to APD", "aut");
+                    }
+                }
+            }
+        }
     }
 }
 

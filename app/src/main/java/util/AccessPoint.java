@@ -129,8 +129,6 @@ public class AccessPoint {
     public static boolean ConnectToWifi(final String networkSSID, String networkPass, Context mContext) {
         final WifiManager wifiManager = (WifiManager) mContext.getSystemService(Context.WIFI_SERVICE);
 
-
-        myLog.add("en action connect to wifi");
         WifiConfiguration conf = new WifiConfiguration();
         conf.SSID = "\"" + networkSSID + "\"";
 

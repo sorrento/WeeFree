@@ -1,12 +1,15 @@
 package util;
 
+import android.content.Context;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
 import android.util.Log;
-import android.widget.Toast;
+
+import com.milenko.weefree.myLog;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.List;
 
 /**
  * Created by Milenko on 27/02/2016.
@@ -81,6 +84,7 @@ public class AccessPoint {
             Log.d("Splash Activity", "cannot configure an access point");
         }
     }
+
     public static void destroyWifiAccessPoint(WifiManager wifiManager) {
 
         Method[] wmMethods = wifiManager.getClass().getDeclaredMethods();
@@ -115,4 +119,51 @@ public class AccessPoint {
 
     }
 
+    /***
+     * connect to a protected wifi
+     *
+     * @param networkSSID
+     * @param networkPass
+     * @param mContext
+     */
+    public static boolean ConnectToWifi(final String networkSSID, String networkPass, Context mContext) {
+        final WifiManager wifiManager = (WifiManager) mContext.getSystemService(Context.WIFI_SERVICE);
+
+
+        myLog.add("en action connect to wifi");
+        WifiConfiguration conf = new WifiConfiguration();
+        conf.SSID = "\"" + networkSSID + "\"";
+
+        //WEP In case of WEP, if your password is in hex, you do not need to surround it with quotes.
+//        conf.wepKeys[0] = "\"" + networkPass + "\"";
+//        conf.wepTxKeyIndex = 0;
+//        conf.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
+//        conf.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.WEP40);
+
+        //WPA
+        conf.preSharedKey = "\"" + networkPass + "\"";
+
+        //open
+//        conf.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
+
+        wifiManager.addNetwork(conf);//todo verificar si está par no agregarla deniuevo
+        List<WifiConfiguration> list = wifiManager.getConfiguredNetworks();
+        if (list == null) {
+            myLog.add("la lista de networks da null aun", "aut");
+            return false;
+        } else {
+            myLog.add("networks found: " + list.size(), "aut");
+
+            for (WifiConfiguration i : list) {
+                if (i.SSID != null && i.SSID.equals("\"" + networkSSID + "\"")) {
+                    wifiManager.disconnect();
+                    wifiManager.enableNetwork(i.networkId, true);
+                    wifiManager.reconnect();
+
+                    break;
+                }
+            }
+            return true;
+        }
+    }
 }

@@ -1,5 +1,6 @@
 package com.milenko.weefree;
 
+import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.Service;
 import android.content.BroadcastReceiver;
@@ -8,17 +9,12 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.NetworkInfo;
 import android.net.wifi.ScanResult;
-import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
 import android.os.IBinder;
 import android.support.annotation.Nullable;
 import android.support.v4.app.NotificationCompat;
-import android.util.Log;
 import android.widget.Toast;
 
-
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -37,6 +33,7 @@ public class WifiObserverService extends Service {
     private int iScan = 0;
     private NotificationManager mNotificationManager;
     private boolean keepListeining = true;//cuando estamos donando, dejamos de escuhar para ver si hay otros vampiros
+    private boolean hasBeenConnectedToVamp = false;
 
 
     @Nullable
@@ -56,6 +53,12 @@ public class WifiObserverService extends Service {
 
             mContext = getApplicationContext();
             mainWifi = (WifiManager) mContext.getSystemService(Context.WIFI_SERVICE);
+
+            //encender eil wifi si esta apagado
+            if (!mainWifi.isWifiEnabled()) {
+                mainWifi.setWifiEnabled(true);
+            }
+
             receiverWifi = new WifiReceiver();
             IntentFilter intentFilter = new IntentFilter();
             intentFilter.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
@@ -83,6 +86,7 @@ public class WifiObserverService extends Service {
             ssids.add(r.SSID);
             sb.append("  '" + r.SSID + "' | " + r.BSSID + " | l= " + r.level + "\n");
             if (r.SSID.equals("TengoSed")) {
+                myLog.add("3. Detected Vamp", "aut");
                 vampiroCerca = true;
             }
         }
@@ -90,12 +94,14 @@ public class WifiObserverService extends Service {
         myLog.add(sb.toString(), tag);
 
         if (vampiroCerca) {
-            updateRecordingNotification("Vampiro encontrado!", "recien");
-            mContext.unregisterReceiver(receiverWifi);
-            util.AccessPoint.createWifiAccessPoint(util.AccessPoint.SSID_DONANTE, AccessPoint.PASS_DONANTE, mainWifi);
+            updateRecordingNotification("Vampiro encontrado!", "ahorita mismo", R.mipmap.ic_weefree, true);
+//            mContext.unregisterReceiver(receiverWifi);
+//            util.AccessPoint.createWifiAccessPoint(util.AccessPoint.SSID_DONANTE, AccessPoint.PASS_DONANTE, mainWifi);
+            myLog.add("3. Connecting to vampire", "aut");
+            AccessPoint.ConnectToWifi(AccessPoint.SSID_VAMPIRE, AccessPoint.PASS_VAMPIRE, mContext);
             keepListeining = false;// dejamos de buscar otros
         } else {
-            updateRecordingNotification("Sin Vampiro", "segumos buscando");
+            updateRecordingNotification("Sin Vampiro", "segumos buscando", android.R.drawable.ic_media_play, false);
         }
     }
 
@@ -127,23 +133,27 @@ public class WifiObserverService extends Service {
 //        mNotificationManager.notify(1, not);
     }
 
-    private void updateRecordingNotification(String title, String content) {
+    private void updateRecordingNotification(String title, String content, int smallIcon, boolean vibrate) {
 //        mNotificationManager.cancel(101);
 
         NotificationCompat.Builder notif;
 
         notif = new NotificationCompat.Builder(this)
-                .setSmallIcon(R.mipmap.ic_launcher)
+                .setSmallIcon(smallIcon)
 //                .setLargeIcon(we.getLogoRounded())
                 .setContentTitle(title)
 //                .setContentText(we.getType())
 //                .setAutoCancel(true)
                 .setOngoing(true)
-//                .setDefaults(Notification.DEFAULT_VIBRATE | Notification.DEFAULT_SOUND | Notification.FLAG_SHOW_LIGHTS)
+
 //                .setLights(0xE6D820, 300, 100)
                 .setTicker("WIFI update");
 //                .setDeleteIntent(pendingDeleteIntent)
 //                .addAction(actionSilence);
+
+        if (vibrate) {
+            notif.setDefaults(Notification.DEFAULT_VIBRATE | Notification.DEFAULT_SOUND | Notification.FLAG_SHOW_LIGHTS);
+        }
         //Bigtext style
         NotificationCompat.BigTextStyle textStyle = new NotificationCompat.BigTextStyle();
         textStyle.setBigContentTitle("wifis around");
@@ -185,14 +195,21 @@ public class WifiObserverService extends Service {
                 NetworkInfo netInfo = intent.getParcelableExtra(WifiManager.EXTRA_NETWORK_INFO);
                 if (netInfo.getDetailedState() == (NetworkInfo.DetailedState.CONNECTED)) {
                     myLog.add("*** We just connected to wifi: " + netInfo.getExtraInfo(), "CON");
+                    if (netInfo.getExtraInfo().equals("\"" + AccessPoint.SSID_VAMPIRE + "\"")) {
+                        myLog.add("3. connected to APV", "aut");
+                        hasBeenConnectedToVamp = true;
+                    } else {
+                        hasBeenConnectedToVamp = false;
+                    }
                 } else if (
-//                        (netInfo.getDetailedState() == NetworkInfo.DetailedState.DISCONNECTING)||
-                        (netInfo.getDetailedState() == NetworkInfo.DetailedState.DISCONNECTED)) {
-                    myLog.add("creating DONANT accesspoint","aut");
+                    //                        (netInfo.getDetailedState() == NetworkInfo.DetailedState.DISCONNECTING)||
+                        (netInfo.getDetailedState() == NetworkInfo.DetailedState.DISCONNECTED && hasBeenConnectedToVamp)) {
+                    myLog.add("6. Desconectando de APV", "aut");
+                    myLog.add("7. Crando APD DONANT accesspoint", "aut");
                     AccessPoint.createWifiAccessPoint(AccessPoint.SSID_DONANTE, AccessPoint.PASS_DONANTE, mainWifi);
                 }
 
-            } else if (action.equals(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION)) {
+            } else if (action.equals(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION) && keepListeining) {
                 List<ScanResult> sr = mainWifi.getScanResults();
                 CheckScanResults(sr);
 
@@ -200,8 +217,5 @@ public class WifiObserverService extends Service {
                 myLog.add("Entering in a different state of network: " + action, tag);
             }
         }
-
-
     }
-
 }

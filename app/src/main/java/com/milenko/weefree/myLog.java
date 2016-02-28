@@ -16,6 +16,7 @@ import java.util.Date;
  */
 public class myLog {
     //    private static String fileName;
+    public static String type = "";
     private static String currentDateandTime;
 
     public static void initialize(String filePath) {
@@ -80,7 +81,7 @@ public class myLog {
 
             //BufferedWriter for performance, true to set append to file flag
             BufferedWriter buf = new BufferedWriter(new FileWriter(logFile, true));
-            buf.append(currentDateandTime + text);
+            buf.append(currentDateandTime + "[" + type + "]" + text);
             buf.newLine();
             buf.flush();
             buf.close();

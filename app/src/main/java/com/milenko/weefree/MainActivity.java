@@ -3,19 +3,15 @@ package com.milenko.weefree;
 import android.content.Context;
 import android.content.Intent;
 import android.net.wifi.ScanResult;
-import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
-import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
-import android.util.Log;
+import android.support.v7.app.AppCompatActivity;
 import android.view.View;
 import android.widget.CompoundButton;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -35,7 +31,18 @@ public class MainActivity extends AppCompatActivity {
     WifiManager wifiManager;
     private Switch swDetection;
     private Context mContext;
+    private boolean foundDonante = false;
+    private Timer t;
 
+    private static String currentDate() {
+        SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
+        return sdf.format(new Date()) + ": ";
+    }
+
+
+    //TODO medir el consumo de datos en el emisor preferentemente
+
+//TODO volver a encender el wifi si lo estaba
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -54,9 +61,10 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
                 if (isChecked) {
+                    myLog.type = "DON";
+                    myLog.add("1. Starting Lisetening service", "aut");
                     Toast.makeText(mContext, "created the servcei", Toast.LENGTH_SHORT).show();
                     mContext.startService(new Intent(mContext, WifiObserverService.class));
-                    Log.d("MHP", "starting service");
                 } else {
                     Toast.makeText(mContext, "unchecked", Toast.LENGTH_SHORT).show();
                     mContext.stopService(new Intent(mContext, WifiObserverService.class));
@@ -66,13 +74,10 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-
-    //TODO medir el consumo de datos en el emisor preferentemente
-
-//TODO volver a encender el wifi si lo estaba
-
     //Button
     public void BroadcastThirsty(View v) {
+        myLog.type = "VAMP";
+        myLog.add("2. creating APV", "aut");
         writeScreen("gritando tengo sed");
         util.AccessPoint.createWifiAccessPoint(AccessPoint.SSID_VAMPIRE, AccessPoint.PASS_VAMPIRE, wifiManager);//OJO key must  ser 8 chars
 
@@ -84,37 +89,65 @@ public class MainActivity extends AppCompatActivity {
 
     private void CheckDonantesLookingAtFile() {
         //scaneear cada7 segundos si hay donanteen el file:
-        final Timer t = new Timer();
+        t = new Timer();
         t.schedule(new TimerTask() {
             @Override
             public void run() {
-                final boolean[] foundDonante = {false};
 
                 WifiApManager wifiApManager = new WifiApManager(mContext);
-                wifiApManager.getClientList(true, 300, new FinishScanListener() {
+                wifiApManager.getClientList(false, 300, new FinishScanListener() {
                     @Override
                     public void onFinishScan(ArrayList<ClientScanResult> clients) {
                         myLog.add("We have " + clients.size() + " clientes coneccted", "aut");
-
-                        foundDonante[0] = true;
+                        if (clients.size() > 0) {
+                            foundDonante = true;
+                        }
 //                        for (ClientScanResult c : clients) {
 //                            myLog.add(c.getDevice());
 //                        }
                     }
                 });
 
-
-                if (foundDonante[0]) {
+                if (foundDonante) {
+                    myLog.add("4. Detected donantes", "aut");
+                    stopChekingDonantesInFile();
+                    foundDonante = false;
                     writeScreen("encontrado un donante!");
-                    wifiApManager.setWifiApEnabled(null, false);
-                    connectToDonante();
+//                    wifiApManager.setWifiApEnabled(null, false);
+                    myLog.add("5. Apagando APV", "aut");
+                    AccessPoint.destroyWifiAccessPoint(wifiManager);
+
+                    if (!wifiManager.isWifiEnabled()) {
+                        wifiManager.setWifiEnabled(true);
+                    }
+
+                    keepTruingToConnect();
                 } else {
+                    myLog.add("No hay donantes", "aut");
                     writeScreen("no hay donantes");
                 }
 
             }
         }, 0, AccessPoint.REFRESH);
 
+    }
+
+    private void keepTruingToConnect() {
+        final Timer timer = new Timer();
+        timer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                //Puede que aun no esté encendida la wifi, asin qu repetimos
+                myLog.add("UN intento de mirar las wifis", "aut");
+                Boolean wifiIsOn = connectToDonante();
+                if (wifiIsOn) timer.cancel();
+
+            }
+        }, 3000, 1000);
+    }
+
+    private void stopChekingDonantesInFile() {
+        t.cancel();
     }
 
     private void CheckDonantesScaningWifi() {
@@ -147,54 +180,13 @@ public class MainActivity extends AppCompatActivity {
         }, 0, 7000);
     }
 
-    private void connectToDonante() {
+    private Boolean connectToDonante() {
+        myLog.add("7. connecttin to APD", "aut");
         writeScreen("conectando a donante");
-              ConnectToWifi(AccessPoint.SSID_DONANTE, AccessPoint.PASS_DONANTE, mContext);
-    }
-
-    /***
-     * connect to a protected wifi
-     *
-     * @param networkSSID
-     * @param networkPass
-     * @param mContext
-     */
-    public static void ConnectToWifi(String networkSSID, String networkPass, Context mContext) {
-        WifiManager wifiManager = (WifiManager) mContext.getSystemService(Context.WIFI_SERVICE);
         if (!wifiManager.isWifiEnabled()) {
             wifiManager.setWifiEnabled(true);
         }
-
-        myLog.add("en action connect to wifi");
-        WifiConfiguration conf = new WifiConfiguration();
-        conf.SSID = "\"" + networkSSID + "\"";
-
-        //WEP In case of WEP, if your password is in hex, you do not need to surround it with quotes.
-//        conf.wepKeys[0] = "\"" + networkPass + "\"";
-//        conf.wepTxKeyIndex = 0;
-//        conf.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
-//        conf.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.WEP40);
-
-        //WPA
-        conf.preSharedKey = "\"" + networkPass + "\"";
-
-        //open
-//        conf.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
-
-        wifiManager.addNetwork(conf);
-
-        List<WifiConfiguration> list = wifiManager.getConfiguredNetworks();
-
-        for (WifiConfiguration i : list) {
-            if (i.SSID != null && i.SSID.equals("\"" + networkSSID + "\"")) {
-                wifiManager.disconnect();
-                wifiManager.enableNetwork(i.networkId, true);
-                wifiManager.reconnect();
-
-                break;
-            }
-        }
-
+        return AccessPoint.ConnectToWifi(AccessPoint.SSID_DONANTE, AccessPoint.PASS_DONANTE, mContext);
     }
 
     private void writeScreen(final String s) {
@@ -206,11 +198,6 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-    }
-
-    private static String currentDate() {
-        SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
-        return sdf.format(new Date()) + ": ";
     }
 }
 

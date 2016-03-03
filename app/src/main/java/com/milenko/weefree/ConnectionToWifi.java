@@ -39,6 +39,8 @@ public class ConnectionToWifi {
 
                         if (netInfo.getExtraInfo() == null) {
                             //TODO check if in lower version, getExtraIfo is null
+                            //Another option to get ssids is here:http:
+                            // stackoverflow.com/questions/21391395/get-ssid-when-wifi-is-connected
                             myLog.add("netInfo.getExtraInfo()==null, deberia ser el nombre de SSID", "aut");
                             return;
                         }

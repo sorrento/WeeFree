@@ -1,19 +1,16 @@
-Descripcion de la dinamica
+## The Dynamics 
 
-D: servicio corriendo
+It works like this:
 
-V: activa vampiro	
+|Donant |Vamp|
+|---|---|
+|1. Listening| - |
+|-|2. Create AP (V)|
+|3. Detect and connect to V|-|
+|-|4. Detects the connection|
+|-|5. Turns off AP (V)|
+|6. Detects desconnection from AP(V)|-|
+|7. Turn on AP (D)|-|
+|-|8. Connect to AP (D)|
 
-	- crea AP
-	- 
-	- revisa cada 7 segundos si alguien se ha conectado
-	- 
-		si se ha1 conecetado alguien
-
-		- apaga AP
-		- 
-		- activa wifi
-		- 
-		- conecta a red de donante [puede que tenga que esperar unos segundos
-		- 
-D: cuando se desconecta de Vampiro, activa su AP
+Still pending the disconection by time and / or usage

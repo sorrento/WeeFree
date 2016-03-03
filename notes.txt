@@ -1,0 +1,15 @@
+
+Todo
+- fix rotataing screen
+- al apretar vampiro se hace en UI thred por lo que congelo todo unos segundos
+
+Test
+- verificar que se  crea un AP sin tener internet
+
+BUGS
+- funciona bien cuando el Galaxy S2 (4.1.0) es el vampiro, no cuando es el donante.
+ (No sale el nombre de la wifi en networkinfo.getextrainfo())
+
+
+
+

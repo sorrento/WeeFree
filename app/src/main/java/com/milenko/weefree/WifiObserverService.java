@@ -8,6 +8,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.NetworkInfo;
+import android.net.TrafficStats;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
 import android.os.IBinder;
@@ -17,6 +18,8 @@ import android.widget.Toast;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
 
 import util.AccessPoint;
 
@@ -32,7 +35,7 @@ public class WifiObserverService extends Service {
     private WifiReceiver receiverWifi;
     private int iScan = 0;
     private NotificationManager mNotificationManager;
-    private boolean keepListeining = true;//cuando estamos donando, dejamos de escuhar para ver si hay otros vampiros
+    private boolean keepListeining = true;//cuando estamos donando, dejamos de atender los escaneos automaitcos
     private boolean hasBeenConnectedToVamp = false;
 
 
@@ -77,8 +80,8 @@ public class WifiObserverService extends Service {
         boolean vampiroCerca = false;
         iScan++;
 
-        ArrayList<String> bssids = new ArrayList<>();
-        ArrayList<String> ssids = new ArrayList<>();
+        ArrayList<String> bssids = new ArrayList<String>();
+        ArrayList<String> ssids = new ArrayList<String>();
         StringBuilder sb = new StringBuilder(iScan + "+++++++ Scan results:+" + "\n");
 
         for (ScanResult r : sr) {
@@ -185,36 +188,67 @@ public class WifiObserverService extends Service {
         }
     }
 
+    private void StartCountingData() {
+        final long dataini = TrafficStats.getMobileRxBytes();
+        final Timer tim = new Timer();
+        tim.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                long bt = TrafficStats.getMobileRxBytes();
+                long deltadata = (bt - dataini) / 1024;
+                myLog.add("datos recibidos mobile:" + deltadata, "aut"); //TODO ojo que si la app no está en primer plano, no lo podrá cortar. habría que iniciar un servicio
+                if (deltadata > 100) {
+                    tim.cancel();
+                    CortarWifiPorExceso(deltadata);
+                }
+                ;
+            }
+        }, 1000, 4000);
+
+    }
+
+    private void CortarWifiPorExceso(long deltadata) {
+        myLog.add("[en service] Cortando la wifi por exceso de datos: " + deltadata + "kb", "aut");
+        //Todo, cortar realmente (apagar, poner en lista negra al user, encender si es que)
+    }
+
     class WifiReceiver extends BroadcastReceiver {
 
         public void onReceive(Context c, Intent intent) {
             final String action = intent.getAction();
 
+            try {
+                if (action.equals(WifiManager.NETWORK_STATE_CHANGED_ACTION)) {
+                    NetworkInfo netInfo = intent.getParcelableExtra(WifiManager.EXTRA_NETWORK_INFO);
 
-            if (action.equals(WifiManager.NETWORK_STATE_CHANGED_ACTION)) {
-                NetworkInfo netInfo = intent.getParcelableExtra(WifiManager.EXTRA_NETWORK_INFO);
-                if (netInfo.getDetailedState() == (NetworkInfo.DetailedState.CONNECTED)) {
-                    myLog.add("*** We just connected to wifi: " + netInfo.getExtraInfo(), "CON");
-                    if (netInfo.getExtraInfo().equals("\"" + AccessPoint.SSID_VAMPIRE + "\"")) {
-                        myLog.add("3. connected to APV", "aut");
-                        hasBeenConnectedToVamp = true;
-                    } else {
+                    myLog.add("---state=" + netInfo.toString() + "hasbeenconnected to vamp: " + hasBeenConnectedToVamp, "aut");
+                    if (netInfo.getDetailedState() == (NetworkInfo.DetailedState.CONNECTED)) {
+                        myLog.add("*** We just connected to wifi: " + netInfo.getExtraInfo(), "CON");
+                        if (netInfo.getExtraInfo().equals("\"" + AccessPoint.SSID_VAMPIRE + "\"")) {
+                            myLog.add("3. connected to APV", "aut");
+                            hasBeenConnectedToVamp = true;
+                        } else {
+                            hasBeenConnectedToVamp = false;
+                        }
+                    } else if (
+                        //                        (netInfo.getDetailedState() == NetworkInfo.DetailedState.DISCONNECTING)||
+                            (netInfo.getDetailedState() == NetworkInfo.DetailedState.DISCONNECTED && hasBeenConnectedToVamp)) {
                         hasBeenConnectedToVamp = false;
+                        myLog.add("6. Desconectando de APV", "aut");
+                        myLog.add("7. Crando APD DONANT accesspoint", "aut");
+                        StartCountingData();
+                        AccessPoint.createWifiAccessPoint(AccessPoint.SSID_DONANTE, AccessPoint.PASS_DONANTE, mainWifi);
                     }
-                } else if (
-                    //                        (netInfo.getDetailedState() == NetworkInfo.DetailedState.DISCONNECTING)||
-                        (netInfo.getDetailedState() == NetworkInfo.DetailedState.DISCONNECTED && hasBeenConnectedToVamp)) {
-                    myLog.add("6. Desconectando de APV", "aut");
-                    myLog.add("7. Crando APD DONANT accesspoint", "aut");
-                    AccessPoint.createWifiAccessPoint(AccessPoint.SSID_DONANTE, AccessPoint.PASS_DONANTE, mainWifi);
+
+                } else if (action.equals(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION) && keepListeining) {
+                    List<ScanResult> sr = mainWifi.getScanResults();
+                    CheckScanResults(sr);
+
+                } else {
+                    myLog.add("Entering in a different state of network: " + action, tag);
                 }
-
-            } else if (action.equals(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION) && keepListeining) {
-                List<ScanResult> sr = mainWifi.getScanResults();
-                CheckScanResults(sr);
-
-            } else {
-                myLog.add("Entering in a different state of network: " + action, tag);
+            } catch (Exception e) {
+                myLog.add("EEE in service , on receive" + e.getLocalizedMessage(), "aut");
             }
         }
     }

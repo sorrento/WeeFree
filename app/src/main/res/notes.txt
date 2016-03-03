@@ -1,3 +1,0 @@
-encender wifi si está apagado
-al girar se jode todo!
-verificar que se  crear un AP sin tener internet

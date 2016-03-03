@@ -35,7 +35,7 @@ public class WifiObserverService extends Service {
     private WifiReceiver receiverWifi;
     private int iScan = 0;
     private NotificationManager mNotificationManager;
-    private boolean keepListeining = true;//cuando estamos donando, dejamos de atender los escaneos automaitcos
+    private boolean keepListening = true;//cuando estamos donando, dejamos de atender los escaneos automaitcos
     private boolean hasBeenConnectedToVamp = false;
 
 
@@ -50,9 +50,7 @@ public class WifiObserverService extends Service {
         myLog.add("Starting service ", tag);
 
         try {
-
-            showRecordingNotification();
-//            Notifications.Initialize(this);
+            showServiceActiveNotification();
 
             mContext = getApplicationContext();
             mainWifi = (WifiManager) mContext.getSystemService(Context.WIFI_SERVICE);
@@ -68,6 +66,7 @@ public class WifiObserverService extends Service {
             intentFilter.addAction(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION);
             mContext.registerReceiver(receiverWifi, intentFilter);
             Toast.makeText(mContext, "Detection ON", Toast.LENGTH_LONG).show();
+
         } catch (Exception e) {
             Toast.makeText(mContext, "Not posstible to activate detection ", Toast.LENGTH_LONG).show();
             myLog.add("error starign " + e.getLocalizedMessage());
@@ -76,6 +75,11 @@ public class WifiObserverService extends Service {
         return super.onStartCommand(intent, flags, startId);
     }
 
+    /**
+     * Analize the list of available WIFIS around. If one of them is the vampire, continues the workflow
+     *
+     * @param sr detected spots
+     */
     public void CheckScanResults(final List<ScanResult> sr) {
         boolean vampiroCerca = false;
         iScan++;
@@ -102,13 +106,13 @@ public class WifiObserverService extends Service {
 //            util.AccessPoint.createWifiAccessPoint(util.AccessPoint.SSID_DONANTE, AccessPoint.PASS_DONANTE, mainWifi);
             myLog.add("3. Connecting to vampire", "aut");
             AccessPoint.ConnectToWifi(AccessPoint.SSID_VAMPIRE, AccessPoint.PASS_VAMPIRE, mContext);
-            keepListeining = false;// dejamos de buscar otros
+            keepListening = false;// dejamos de buscar otros
         } else {
             updateRecordingNotification("Sin Vampiro", "segumos buscando", android.R.drawable.ic_media_play, false);
         }
     }
 
-    private void showRecordingNotification() {
+    private void showServiceActiveNotification() {
         mNotificationManager = (NotificationManager) this.getSystemService(Context.NOTIFICATION_SERVICE);
 
         NotificationCompat.Builder notif;
@@ -127,13 +131,6 @@ public class WifiObserverService extends Service {
 //                .addAction(actionSilence);
 //
         mNotificationManager.notify(101, notif.build());
-
-
-//        Notification not = new Notification(R.drawable.icon, "Application started", System.currentTimeMillis());
-//        PendingIntent contentIntent = PendingIntent.getActivity(this, 0, new Intent(this, main.class), Notification.FLAG_ONGOING_EVENT);
-//        not.flags = Notification.FLAG_ONGOING_EVENT;
-//        not.setLatestEventInfo(this, "Application Name", "Application Description", contentIntent);
-//        mNotificationManager.notify(1, not);
     }
 
     private void updateRecordingNotification(String title, String content, int smallIcon, boolean vibrate) {
@@ -166,12 +163,6 @@ public class WifiObserverService extends Service {
 
         mNotificationManager.notify(101, notif.build());
 
-
-//        Notification not = new Notification(R.drawable.icon, "Application started", System.currentTimeMillis());
-//        PendingIntent contentIntent = PendingIntent.getActivity(this, 0, new Intent(this, main.class), Notification.FLAG_ONGOING_EVENT);
-//        not.flags = Notification.FLAG_ONGOING_EVENT;
-//        not.setLatestEventInfo(this, "Application Name", "Application Description", contentIntent);
-//        mNotificationManager.notify(1, not);
     }
 
     @Override
@@ -201,7 +192,6 @@ public class WifiObserverService extends Service {
                     tim.cancel();
                     CortarWifiPorExceso(deltadata);
                 }
-                ;
             }
         }, 1000, 4000);
 
@@ -212,6 +202,9 @@ public class WifiObserverService extends Service {
         //Todo, cortar realmente (apagar, poner en lista negra al user, encender si es que)
     }
 
+    /**
+     * For detection of connect/disconnet or autoscanning of wifis
+     */
     class WifiReceiver extends BroadcastReceiver {
 
         public void onReceive(Context c, Intent intent) {
@@ -224,6 +217,13 @@ public class WifiObserverService extends Service {
                     myLog.add("---state=" + netInfo.toString() + "hasbeenconnected to vamp: " + hasBeenConnectedToVamp, "aut");
                     if (netInfo.getDetailedState() == (NetworkInfo.DetailedState.CONNECTED)) {
                         myLog.add("*** We just connected to wifi: " + netInfo.getExtraInfo(), "CON");
+
+                        if (netInfo.getExtraInfo() == null) {
+                            //TODO check if in lower version, getExtraIfo is null
+                            myLog.add("netInfo.getExtraInfo()==null, deberia ser el nombre de SSID", "aut");
+                            return;
+                        }
+
                         if (netInfo.getExtraInfo().equals("\"" + AccessPoint.SSID_VAMPIRE + "\"")) {
                             myLog.add("3. connected to APV", "aut");
                             hasBeenConnectedToVamp = true;
@@ -240,7 +240,7 @@ public class WifiObserverService extends Service {
                         AccessPoint.createWifiAccessPoint(AccessPoint.SSID_DONANTE, AccessPoint.PASS_DONANTE, mainWifi);
                     }
 
-                } else if (action.equals(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION) && keepListeining) {
+                } else if (action.equals(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION) && keepListening) {
                     List<ScanResult> sr = mainWifi.getScanResults();
                     CheckScanResults(sr);
 

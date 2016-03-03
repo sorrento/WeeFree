@@ -2,6 +2,9 @@
 Todo
 - fix rotataing screen
 - al apretar vampiro se hace en UI thred por lo que congelo todo unos segundos
+- medir el consumo de datos en el emisor preferentemente
+- volver a encender el wifi si lo estaba antes de empezar
+- WIFIAPmanager y ACCESSPOINT son redundantes (la segunda es mia, la primera l saqué por ahi
 
 Test
 - verificar que se  crea un AP sin tener internet

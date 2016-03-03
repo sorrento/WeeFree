@@ -57,7 +57,7 @@ public class AccessPoint {
 
                             for (Method method1 : wmMethods) {
                                 if (method1.getName().equals("getWifiApState")) {
-                                    int apstate; //TODO what for?
+                                    int apstate;
                                     apstate = (Integer) method1.invoke(mainWifi);
                                 }
                             }
@@ -144,7 +144,7 @@ public class AccessPoint {
         //open
 //        conf.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
 
-        wifiManager.addNetwork(conf);//todo verificar si está par no agregarla deniuevo
+        wifiManager.addNetwork(conf);
         List<WifiConfiguration> list = wifiManager.getConfiguredNetworks();
         if (list == null) {
             myLog.add("la lista de networks da null aun", "aut");

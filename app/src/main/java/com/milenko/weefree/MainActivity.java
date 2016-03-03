@@ -1,18 +1,14 @@
 package com.milenko.weefree;
 
-import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.net.NetworkInfo;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
-import android.os.Vibrator;
 import android.support.v7.app.AppCompatActivity;
 import android.view.View;
 import android.widget.CompoundButton;
 import android.widget.Switch;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -30,21 +26,17 @@ import static com.milenko.weefree.myLog.WriteUnhandledErrors;
 public class MainActivity extends AppCompatActivity {
 
     WifiManager wifiManager;
-    private Switch swDetection;
     private Context mContext;
+    private Switch swDetection;
     private boolean foundDonante = false;
-    private Timer t;
-    private DetectConnectionToDonante receiverWifi;
+    private Timer timerCheckClients;
 
     private static String currentDate() {
         SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
         return sdf.format(new Date()) + ": ";
     }
 
-
-    //TODO medir el consumo de datos en el emisor preferentemente
-
-//TODO volver a encender el wifi si lo estaba
+    //Button Vampire
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -52,11 +44,12 @@ public class MainActivity extends AppCompatActivity {
             super.onCreate(savedInstanceState);
             setContentView(R.layout.activity_main);
 
+            mContext = getApplicationContext();
             wifiManager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
+
             myLog.initialize("/WFLOG/rt.txt"); //Log in a file on the phone
             WriteUnhandledErrors(true);
 
-            mContext = getApplicationContext();
 
             //Start service as donant
 
@@ -68,153 +61,129 @@ public class MainActivity extends AppCompatActivity {
                     if (isChecked) {
                         myLog.type = "DON";
                         myLog.add("1. Starting Lisetening service", "aut");
-                        Toast.makeText(mContext, "created the servcei", Toast.LENGTH_SHORT).show();
                         mContext.startService(new Intent(mContext, WifiObserverService.class));
                     } else {
-                        Toast.makeText(mContext, "unchecked", Toast.LENGTH_SHORT).show();
                         mContext.stopService(new Intent(mContext, WifiObserverService.class));
                     }
+
                 }
             });
-
-//            //medida de flujo de datos
-//            final long dataini = TrafficStats.getMobileRxBytes();
-//            final Timer tim = new Timer();
-//            tim.schedule(new TimerTask() {
-//                @Override
-//                public void run() {
-//                    long bt = TrafficStats.getMobileRxBytes();
-//                    long deltadata = (bt - dataini) / 1024;
-//                    myLog.add("datos recibidos mobile:" + deltadata, "aut"); //TODO ojo que si la app no está en primer plano, no lo podrá cortar. habría que iniciar un servicio
-//                    if (deltadata > 5) {
-//                        tim.cancel();
-//                        CortarWifiPorExceso(deltadata);
-//                    }
-//                    ;
-//                }
-//            }, 1000, 4000);
-
-
         } catch (Exception e) {
-            myLog.add("EEEEE on create" + e.getLocalizedMessage(), "aut");
+            myLog.add("EEEEError on create" + e.getLocalizedMessage(), "aut");
         }
-
     }
 
-    private void CortarWifiPorExceso(long deltadata) {
-        myLog.add("Cortando la wifi por exceso de datos: " + deltadata + "kb", "aut");
-        //Todo, cortar realmente (apagar, poner en lista negra al user, encender si es que)
-    }
-
-    //Button
-    public void BroadcastThirsty(View v) {
+    /**
+     * Starts the vampire mode: turn on an AP with SSID = "TengoSed"
+     *
+     * @param v button that send the request. Can be null
+     */
+    public void startVampireMode(View v) {
         try {
             myLog.type = "VAMP";
-            myLog.add("2. creating APV", "aut");
-            writeScreen("gritando tengo sed");
-
-
-//            receiverWifi = new DetectConnectionToDonante();
-//            IntentFilter intentFilter = new IntentFilter();
-//            intentFilter.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
-//            mContext.registerReceiver(receiverWifi, intentFilter);
-
+            writeScreen("2. Creating Access Point (V)");
 
             AccessPoint.createWifiAccessPoint(AccessPoint.SSID_VAMPIRE, AccessPoint.PASS_VAMPIRE, wifiManager);//OJO key must  ser 8 chars
+            checkClientsList();
 
-//        CheckDonantesScaningWifi();
-            CheckDonantesLookingAtFile();
         } catch (Exception e) {
-            myLog.add("EEEE broadcastT" + e.getLocalizedMessage(), "aut");
+            myLog.add("EEEE in startVampireMode" + e.getLocalizedMessage(), "aut");
         }
-
-
     }
 
-    private void CheckDonantesLookingAtFile() {
+    /**
+     * Created the AP, check the list of clients (looking one specific system file ec 7 secs)
+     * If a "Donante" is connected (any connection) continues the workflow
+     * 4. Detects the connection
+     * 5. Turns off AP (V)
+     */
+    private void checkClientsList() {
         try {
-            myLog.add("entering ChekDOannates looking a file", "aut");
-            //scaneear cada7 segundos si hay donanteen el file:
-            t = new Timer();
-            t.schedule(new TimerTask() {
+            timerCheckClients = new Timer();
+            timerCheckClients.schedule(new TimerTask() {
                 @Override
                 public void run() {
-
                     WifiApManager wifiApManager = new WifiApManager(mContext);
                     wifiApManager.getClientList(false, 300, new FinishScanListener() {
+
                         @Override
                         public void onFinishScan(ArrayList<ClientScanResult> clients) {
                             myLog.add("We have " + clients.size() + " clientes coneccted", "aut");
                             if (clients.size() > 0) {
                                 foundDonante = true;
                             }
-                            //                        for (ClientScanResult c : clients) {
-                            //                            myLog.add(c.getDevice());
-                            //                        }
                         }
                     });
 
                     if (foundDonante) {
-                        myLog.add("4. Detected donantes", "aut");
-                        stopChekingDonantesInFile();
                         foundDonante = false;
-                        writeScreen("encontrado un donante!");
-                        //                    wifiApManager.setWifiApEnabled(null, false);
-                        myLog.add("5. Apagando APV", "aut");
+                        writeScreen("4. Detected donantes");
+
+                        stopCheckingClients();
+
                         AccessPoint.destroyWifiAccessPoint(wifiManager);
+                        writeScreen("5. Apagando APV");
 
                         if (!wifiManager.isWifiEnabled()) {
                             wifiManager.setWifiEnabled(true);
                         }
+                        keepTryingToConnectToDon();
 
-                        keepTryingToConnect();
                     } else {
-                        myLog.add("No hay donantes", "aut");
-                        writeScreen("no hay donantes");
+                        writeScreen("There is no Donante");
                     }
 
                 }
             }, 0, AccessPoint.REFRESH);
         } catch (Exception e) {
-            myLog.add("Chekdonante error" + e.getLocalizedMessage(), "aut");
+            myLog.add("Error CheckClientsList" + e.getLocalizedMessage(), "aut");
         }
 
     }
 
-    private void keepTryingToConnect() {
-        myLog.add("in Keeptryibg", "aut");
+    private void stopCheckingClients() {
+        myLog.add("stopping timerCheckClients the chek in file", "aut");
+        timerCheckClients.cancel();
+    }
 
+    /**
+     * Try to connect to connect to Donante
+     * It repeats, Because we are not sure that our WIFI is turned on
+     */
+    private void keepTryingToConnectToDon() {
         final Timer timer = new Timer();
+
+        new ConnectionToWifi(mContext, AccessPoint.SSID_DONANTE, new ConnectionDetectedByClient() {
+            @Override
+            public void OnConnection() {
+                myLog.add("8. Connected to Donant (APD)", "aut");
+            }
+        });
+
         timer.schedule(new TimerTask() {
             @Override
             public void run() {
-                //Puede que aun no esté encendida la wifi, asin qu repetimos
                 myLog.add("UN intento de mirar las wifis", "aut");
                 Boolean wifiIsOn = connectToDonante();
                 myLog.add("wifi is on =" + wifiIsOn, "aut");
                 if (wifiIsOn) timer.cancel();
-
             }
         }, 3000, 1000);
     }
 
-    private void stopChekingDonantesInFile() {
-        myLog.add("stopping timer the chek in file", "aut");
-        t.cancel();
-    }
-
-
     private Boolean connectToDonante() {
-        myLog.add("8. connecttin to APD", "aut");
-        writeScreen("conectando a donante");
+        writeScreen("8. connecttin to APD");
+
         if (!wifiManager.isWifiEnabled()) {
             wifiManager.setWifiEnabled(true);
         }
         return AccessPoint.ConnectToWifi(AccessPoint.SSID_DONANTE, AccessPoint.PASS_DONANTE, mContext);
     }
 
+    //Write some logs on the screen
     private void writeScreen(final String s) {
         try {
+            myLog.add(s, "aut");
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
@@ -227,26 +196,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    class DetectConnectionToDonante extends BroadcastReceiver {
-
-        public void onReceive(Context c, Intent intent) {
-            try {
-                final String action = intent.getAction();
-                if (action.equals(WifiManager.NETWORK_STATE_CHANGED_ACTION)) {
-                    NetworkInfo netInfo = intent.getParcelableExtra(WifiManager.EXTRA_NETWORK_INFO);
-                    if (netInfo.getDetailedState() == (NetworkInfo.DetailedState.CONNECTED)) {
-                        if (netInfo.getExtraInfo().equals("\"" + AccessPoint.SSID_DONANTE + "\"")) {
-                            Vibrator v = (Vibrator) mContext.getSystemService(Context.VIBRATOR_SERVICE);
-                            v.vibrate(300);
-                            myLog.add("8. connected to APD", "aut");
-                        }
-                    }
-                }
-            } catch (Exception e) {
-                myLog.add("EEEEE onreceive " + e.getMessage(), "aut");
-            }
-        }
-    }
 }
 
 

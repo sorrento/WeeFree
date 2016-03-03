@@ -1,17 +1,17 @@
 package util;
 
-        import java.io.BufferedReader;
-        import java.io.FileReader;
-        import java.io.IOException;
-        import java.lang.reflect.Method;
-        import java.net.InetAddress;
-        import java.util.ArrayList;
+import android.content.Context;
+import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiManager;
+import android.os.Handler;
+import android.util.Log;
 
-        import android.content.Context;
-        import android.net.wifi.WifiConfiguration;
-        import android.net.wifi.WifiManager;
-        import android.os.Handler;
-        import android.util.Log;
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
+import java.lang.reflect.Method;
+import java.net.InetAddress;
+import java.util.ArrayList;
 
 
 public class WifiApManager {
@@ -31,6 +31,7 @@ public class WifiApManager {
      * AP mode, update the new configuration
      * Note that starting in access point mode disables station
      * mode operation
+     *
      * @param wifiConfig SSID, security and channel details as part of WifiConfiguration
      * @return {@code true} if the operation succeeds, {@code false} otherwise
      */
@@ -91,6 +92,7 @@ public class WifiApManager {
 
     /**
      * Gets the Wi-Fi AP Configuration.
+     *
      * @return AP details in {@link WifiConfiguration}
      */
     public WifiConfiguration getWifiApConfiguration() {
@@ -106,6 +108,7 @@ public class WifiApManager {
 
     /**
      * Sets the Wi-Fi AP Configuration.
+     *
      * @return {@code true} if the operation succeeded, {@code false} otherwise
      */
     public boolean setWifiApConfiguration(WifiConfiguration wifiConfig) {
@@ -121,19 +124,21 @@ public class WifiApManager {
 
     /**
      * Gets a list of the clients connected to the Hotspot, reachable timeout is 300
-     * @param onlyReachables {@code false} if the list should contain unreachable (probably disconnected) clients, {@code true} otherwise
+     *
+     * @param onlyReachables  {@code false} if the list should contain unreachable (probably disconnected) clients, {@code true} otherwise
      * @param finishListener, Interface called when the scan method finishes
      */
     public void getClientList(boolean onlyReachables, FinishScanListener finishListener) {
-        getClientList(onlyReachables, 300, finishListener );
+        getClientList(onlyReachables, 300, finishListener);
     }
 
 
     /**
      * Gets a list of the clients connected to the Hotspot
-     * @param onlyReachables {@code false} if the list should contain unreachable (probably disconnected) clients, {@code true} otherwise
+     *
+     * @param onlyReachables   {@code false} if the list should contain unreachable (probably disconnected) clients, {@code true} otherwise
      * @param reachableTimeout Reachable Timout in miliseconds
-     * @param finishListener, Interface called when the scan method finishes
+     * @param finishListener,  Interface called when the scan method finishes
      */
     public void getClientList(final boolean onlyReachables, final int reachableTimeout, final FinishScanListener finishListener) {
 
